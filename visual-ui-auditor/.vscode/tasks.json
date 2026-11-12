@@ -1,0 +1,14 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Visual UI Auditor: serve",
+      "type": "shell",
+      "command": "/home/dyson/p1/visual-ui-auditor/.venv/bin/python",
+      "args": ["-m", "backend.main"],
+      "options": { "cwd": "/home/dyson/p1/visual-ui-auditor" },
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

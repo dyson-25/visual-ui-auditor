@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1016">
+  <title>Frame / Visual QA Mission Control</title>
+  <link rel="stylesheet" href="/static/css/tailwind.css">
+  <script type="module" src="/static/js/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#workspace">Skip to audit workspace</a>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Frame home"><span class="brand-mark" aria-hidden="true">F<span>·</span></span><span>frame<span class="brand-slash"> / </span><span class="brand-sub">MISSION CONTROL</span></span></a>
+    <div class="topbar-meta"><span class="status-dot"></span> VISUAL QUALITY LAB <span class="version">01 / WORKSPACE</span></div>
+  </header>
+  <main>
+    <section class="launch-panel" aria-labelledby="page-title">
+      <div class="launch-heading"><div><p class="eyebrow">SEE THE GAPS. SHIP WITH CONFIDENCE.</p><h1 id="page-title">Every viewport. <span>Every detail.</span></h1><p class="intro">A focused workspace for responsive visual quality.</p></div><span class="local-badge"><span class="status-dot"></span> THREE VIEWPORTS · ONE AUDIT</span></div>
+      <form id="audit-form" class="audit-form">
+        <label for="audit-url" class="sr-only">Website URL to audit</label>
+        <div class="url-field"><span aria-hidden="true" class="url-icon">↗</span><input id="audit-url" type="url" required placeholder="https://your-website.com" autocomplete="url" spellcheck="false" aria-describedby="url-help"></div>
+        <button id="run-audit" type="submit" class="primary-button"><span aria-hidden="true">▶</span> Run Visual Audit</button>
+      </form>
+      <div class="launch-foot"><p id="url-help">Enter a public or local http(s) URL. Inspect overflow, collisions, touch targets, runtime & accessibility.</p><button id="try-demo" class="text-button" type="button">Try calibration page <span aria-hidden="true">↗</span></button></div>
+      <p id="feedback" class="feedback" role="status" aria-live="polite" hidden></p>
+    </section>
+
+    <section class="mission-bar" aria-label="Audit progress">
+      <div class="mission-state"><span id="mission-dot" class="status-dot muted"></span><div><strong id="audit-status" role="status" aria-live="polite">Ready for your first audit</strong><span id="audit-target">Your next quality check starts here.</span></div></div>
+      <div class="progress-block"><div class="progress-label"><span id="progress-label">AWAITING TARGET</span><span id="progress-value">0%</span></div><progress id="progress" max="100" value="0" aria-label="Audit progress"></progress></div>
+      <div class="duration-block"><span class="eyebrow">DURATION</span><strong id="duration">—</strong></div>
+    </section>
+
+    <section class="summary-grid" aria-label="Audit summary">
+      <div class="stat-card total-stat"><span class="eyebrow">TOTAL FINDINGS</span><div><strong id="total-count">—</strong><span id="summary-caption">No audit yet</span></div></div>
+      <div class="stat-card"><span class="eyebrow"><i class="severity-dot high"></i> HIGH PRIORITY</span><div><strong id="high-count">—</strong><span>Review first</span></div></div>
+      <div class="stat-card"><span class="eyebrow"><i class="severity-dot medium"></i> MEDIUM PRIORITY</span><div><strong id="medium-count">—</strong><span>Refine the details</span></div></div>
+      <div class="stat-card"><span class="eyebrow">AUDIT WARNINGS</span><div><strong id="warning-count">—</strong><span id="warning-caption">Capture & coverage</span></div></div>
+    </section>
+
+    <section id="workspace" class="workspace" aria-label="Visual inspection workspace">
+      <div class="visual-panel">
+        <div class="panel-toolbar"><div><p class="eyebrow">VISUAL WORKSPACE</p><h2>Viewport explorer</h2></div><label class="overlay-control" for="overlay-toggle"><span>Raw</span><input type="checkbox" id="overlay-toggle" checked><span class="switch-track" aria-hidden="true"></span><span>Heatmap</span></label></div>
+        <div class="view-toolbar"><div class="segmented" role="group" aria-label="Viewport filter"><button type="button" data-view="all" class="active" aria-pressed="true">All <span>3</span></button><button type="button" data-view="desktop" aria-pressed="false">Desktop</button><button type="button" data-view="tablet" aria-pressed="false">Tablet</button><button type="button" data-view="mobile" aria-pressed="false">Mobile</button></div><div class="zoom-controls" aria-label="Image zoom"><button type="button" id="zoom-out" aria-label="Zoom out" disabled>−</button><button type="button" id="zoom-reset" aria-label="Reset zoom to 100%" aria-pressed="true" disabled><output id="zoom-value" aria-live="polite">100%</output></button><button type="button" id="zoom-in" aria-label="Zoom in" disabled>+</button><button type="button" id="zoom-fit" disabled>Fit</button></div></div>
+        <div id="canvas-grid" class="canvas-grid" data-view="all">
+          <article class="viewport-card" data-card="desktop"><header><span class="device-icon" aria-hidden="true">▱</span><h3>Desktop</h3><span class="viewport-size">1440 × 900</span><span class="viewport-count" data-count="desktop">—</span></header><div class="canvas-scroll" data-scroll="desktop"><canvas data-viewport="desktop" tabindex="0" hidden aria-label="Desktop screenshot; use the finding list to inspect issues"></canvas><div class="capture-placeholder" data-placeholder="desktop"><span class="empty-device desktop-device" aria-hidden="true"></span><strong>The big picture</strong><p>Desktop capture will appear here.</p><span class="capture-tag">1440 × 900</span></div></div><footer><span data-capture-label="desktop">AWAITING CAPTURE</span><span>01</span></footer></article>
+          <article class="viewport-card" data-card="tablet"><header><span class="device-icon" aria-hidden="true">▯</span><h3>Tablet</h3><span class="viewport-size">768 × 1024</span><span class="viewport-count" data-count="tablet">—</span></header><div class="canvas-scroll" data-scroll="tablet"><canvas data-viewport="tablet" tabindex="0" hidden aria-label="Tablet screenshot; use the finding list to inspect issues"></canvas><div class="capture-placeholder" data-placeholder="tablet"><span class="empty-device tablet-device" aria-hidden="true"></span><strong>Between the breakpoints</strong><p>Tablet capture will appear here.</p><span class="capture-tag">768 × 1024</span></div></div><footer><span data-capture-label="tablet">AWAITING CAPTURE</span><span>02</span></footer></article>
+          <article class="viewport-card" data-card="mobile"><header><span class="device-icon" aria-hidden="true">▯</span><h3>Mobile</h3><span class="viewport-size">375 × 812</span><span class="viewport-count" data-count="mobile">—</span></header><div class="canvas-scroll" data-scroll="mobile"><canvas data-viewport="mobile" tabindex="0" hidden aria-label="Mobile screenshot; use the finding list to inspect issues"></canvas><div class="capture-placeholder" data-placeholder="mobile"><span class="empty-device mobile-device" aria-hidden="true"></span><strong>Small screen. High stakes.</strong><p>Mobile capture will appear here.</p><span class="capture-tag">375 × 812</span></div></div><footer><span data-capture-label="mobile">AWAITING CAPTURE</span><span>03</span></footer></article>
+        </div>
+        <div class="canvas-legend"><span><i class="severity-dot high"></i> High priority <i class="severity-dot medium"></i> Medium priority</span><span id="canvas-hint">Select a finding to inspect its location.</span></div>
+        <details class="warnings-panel" id="warnings-panel" hidden><summary id="warnings-title">Capture warnings</summary><ul id="warnings-list"></ul></details>
+      </div>
+      <aside id="inspector-panel" class="inspector-panel" aria-labelledby="inspector-title"><div class="inspector-heading"><div><p class="eyebrow">DETAILS & REMEDIATION</p><h2 id="inspector-title">Finding inspector</h2></div><span aria-hidden="true" class="crosshair">⌖</span></div><div id="inspector-empty" class="inspector-empty"><div class="inspector-empty-icon" aria-hidden="true">⌖</div><h3>A closer look starts here</h3><p>Select a finding or a highlighted region to see what needs attention.</p><div class="inspector-hint"><span>01</span> Locate the issue<br><span>02</span> Understand the impact<br><span>03</span> Explore a suggested fix</div></div><div id="inspector-detail" hidden><div class="finding-meta"><span id="inspector-severity" class="severity-badge"></span><span id="inspector-viewport"></span><span id="inspector-number"></span></div><h3 id="inspector-type"></h3><label class="detail-label">ELEMENT SELECTOR</label><pre id="inspector-selector" tabindex="0"></pre><p id="related-selector" class="related-selector" hidden></p><label class="detail-label">WHY IT MATTERS</label><p id="inspector-reason"></p><p id="inspector-location" class="location-note"></p><label class="detail-label">SUGGESTED REMEDIATION</label><pre id="inspector-suggestion" tabindex="0"></pre><p class="suggestion-note">A starting point, not a guaranteed fix. Validate against your layout and design intent.</p><a id="inspector-help" class="text-link" target="_blank" rel="noopener noreferrer" hidden>Reference documentation ↗</a></div></aside>
+    </section>
+
+    <section class="bottom-grid">
+      <div class="findings-panel"><div class="section-heading"><div><p class="eyebrow">THE QUALITY CHECKLIST</p><h2>Findings <span id="visible-count" class="count-pill">0</span></h2></div><span id="finding-scope" class="muted-text">All viewports</span></div><div id="pillar-filters" class="pillar-filters" role="group" aria-label="Finding pillar filter"><button type="button" data-pillar="all" class="active" aria-pressed="true">All <span>0</span></button><button type="button" data-pillar="overflow" aria-pressed="false">Overflow <span>0</span></button><button type="button" data-pillar="collision" aria-pressed="false">Collision <span>0</span></button><button type="button" data-pillar="touch" aria-pressed="false">Touch <span>0</span></button><button type="button" data-pillar="runtime" aria-pressed="false">Runtime <span>0</span></button><button type="button" data-pillar="accessibility" aria-pressed="false">Accessibility <span>0</span></button></div><div id="bug-list" class="bug-list" aria-label="Audit findings"><div class="findings-empty"><span aria-hidden="true">◎</span><h3>Clarity, not clutter.</h3><p>Run an audit to build your actionable quality checklist.</p></div></div></div>
+      <div class="activity-panel"><div class="section-heading"><div><p class="eyebrow">LIVE TELEMETRY</p><h2>Audit activity</h2></div><span id="connection-status" class="connection-status">Standby</span></div><div id="audit-logs" class="audit-logs" role="log" aria-label="Audit activity log" aria-live="polite" aria-relevant="additions"><p class="log-empty">No activity yet. Ready when you are.</p></div></div>
+    </section>
+
+    <section class="history-panel"><div class="section-heading"><div><p class="eyebrow">PREVIOUS MISSIONS</p><h2>Audit history</h2></div><button id="refresh-history" type="button" class="subtle-button">Refresh history ↻</button></div><div id="audit-history" class="audit-history" aria-label="Recent audits"><p class="muted-text">Loading recent audits…</p></div></section>
+    <footer class="report-footer"><div><strong>Take the findings with you.</strong><p id="export-status" role="status" aria-live="polite">Reports unlock when the audit is complete.</p></div><div class="export-buttons"><button type="button" data-export="json" disabled>↓ JSON</button><button type="button" data-export="html" disabled>↓ HTML</button><button type="button" data-export="pdf" disabled>↓ PDF <span>REPORT</span></button></div></footer>
+  </main>
+  <div class="page-foot"><span>FRAME / VISUAL QA</span><span>Built for the details that make the difference.</span><span>INSPECT · UNDERSTAND · REFINE</span></div>
+</body>
+</html>

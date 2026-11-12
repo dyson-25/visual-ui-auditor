@@ -1,0 +1,10 @@
+{
+  "name": "visual-ui-auditor-assets",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build:css": "tailwindcss -i frontend/css/tailwind.input.css -o frontend/css/tailwind.css --minify"
+  },
+  "dependencies": { "axe-core": "4.10.3" },
+  "devDependencies": { "@tailwindcss/cli": "4.1.17", "tailwindcss": "4.1.17" }
+}

@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+.pytest_cache/
+node_modules/
+backend/storage/*
+!backend/storage/.gitkeep
