@@ -39,8 +39,10 @@ def create_app(storage: Path = STORAGE) -> FastAPI:
         await asyncio.gather(*tasks, return_exceptions=True)
 
     app = FastAPI(title="Visual UI Auditor", lifespan=lifespan)
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"])
-
+    app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver", "*.onrender.com"],
+   )
     @app.middleware("http")
     async def local_client(request: Request, call_next):
         if request.method == "POST" and request.url.path.startswith("/api/"):
