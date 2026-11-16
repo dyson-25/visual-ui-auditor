@@ -40,5 +40,6 @@ async def scan_accessibility(page: Page) -> dict:
       }
       if (bugs.length >= 250) warnings.push('Accessibility findings capped at 250.');
       if (result.incomplete.length) warnings.push(`${result.incomplete.length} accessibility rules need manual review: ${result.incomplete.map(r=>r.id).join(', ')}.`);
-      return {bugs, warnings};
+      const status = warnings.length ? 'incomplete' : bugs.length ? 'violations' : 'passed';
+      return {bugs, warnings, status, issue_count: bugs.length};
     }""")

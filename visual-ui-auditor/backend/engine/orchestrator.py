@@ -14,6 +14,7 @@ from backend.engine.a11y_scanner import scan_accessibility
 from backend.engine.heatmap_drawer import draw_heatmap
 from backend.engine.runtime_scanner import RuntimeCollector
 from backend.models import BugItem, ViewportReport
+from backend.security import PUBLIC_BROWSER_ARGS, restrict_public_context
 
 VIEWPORTS = {
     "desktop": {"width": 1440, "height": 900},
@@ -51,13 +52,15 @@ async def run_audit(
     audit_id: str,
     output: Path,
     progress: Callable[[int, str], Awaitable[None]],
+    *,
+    public_demo: bool = False,
 ) -> dict:
     started = time.monotonic()
     output.mkdir(parents=True, exist_ok=True)
     reports = []
     scanner = (Path(__file__).parent / "dom_scanner.js").read_text(encoding="utf-8")
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch()
+        browser = await playwright.chromium.launch(args=PUBLIC_BROWSER_ARGS if public_demo else [])
         try:
             for index, (name, viewport) in enumerate(VIEWPORTS.items()):
                 base = 5 + index * 30
@@ -67,6 +70,8 @@ async def run_audit(
                     bypass_csp=True, service_workers="block", accept_downloads=False,
                 )
                 try:
+                    if public_demo:
+                        await restrict_public_context(context, url)
                     page = await context.new_page()
                     page.set_default_timeout(NAVIGATION_TIMEOUT_MS)
                     runtime = RuntimeCollector(page)
@@ -86,7 +91,8 @@ async def run_audit(
                     try:
                         accessibility = await asyncio.wait_for(scan_accessibility(page), timeout=25)
                     except Exception as exc:
-                        accessibility = {"bugs": [], "warnings": [f"Accessibility check incomplete: {type(exc).__name__}: {str(exc)[:300]}"]}
+                        accessibility = {"bugs": [], "status": "incomplete", "issue_count": None,
+                                         "warnings": [f"Accessibility check incomplete: {type(exc).__name__}: {str(exc)[:300]}. No clean accessibility result is available; fix the scanner dependency or timeout and rerun."]}
                     warnings.extend(accessibility["warnings"])
                     height = await page.evaluate("Math.max(document.documentElement.scrollHeight, innerHeight)")
                     capture_height = min(MAX_PAGE_HEIGHT, height)
@@ -108,7 +114,9 @@ async def run_audit(
                     report = ViewportReport(
                         name=name, **viewport, screenshot_width=viewport["width"], screenshot_height=capture_height,
                         screenshot=f"/screenshots/{audit_id}/{raw.name}", heatmap=f"/screenshots/{audit_id}/{annotated.name}",
-                        bugs=bugs, warnings=warnings, metrics={**geometry["metrics"], **timing},
+                        bugs=bugs, warnings=warnings,
+                        accessibility_status=accessibility["status"], accessibility_issue_count=accessibility["issue_count"],
+                        metrics={**geometry["metrics"], **timing},
                     )
                     reports.append(report.model_dump())
                     await progress(base + 28, f"Scanned {name.title()} — {len(bugs)} findings, {len(warnings)} warnings")
@@ -117,12 +125,18 @@ async def run_audit(
         finally:
             await browser.close()
     findings = [bug for report in reports for bug in report["bugs"]]
+    incomplete = [r["name"] for r in reports if r["accessibility_status"] == "incomplete"]
+    accessibility_status = "incomplete" if incomplete else (
+        "violations" if any(r["accessibility_status"] == "violations" for r in reports) else "passed"
+    )
     return {
         "audit_id": audit_id, "url": url, "duration_seconds": round(time.monotonic() - started, 2),
         "viewports": reports,
         "summary": {"total": len(findings), "by_severity": dict(Counter(b["severity"] for b in findings)),
                     "by_pillar": dict(Counter(b["pillar"] for b in findings)),
-                    "warning_count": sum(len(r["warnings"]) for r in reports)},
+                    "warning_count": sum(len(r["warnings"]) for r in reports),
+                    "accessibility_status": accessibility_status,
+                    "accessibility_incomplete_viewports": incomplete},
     }
 
 

@@ -56,4 +56,6 @@ class ViewportReport(BaseModel):
     heatmap: str
     bugs: list[BugItem]
     warnings: list[str] = Field(default_factory=list)
+    accessibility_status: Literal["passed", "violations", "incomplete"] = "incomplete"
+    accessibility_issue_count: int | None = Field(default=None, ge=0)
     metrics: dict = Field(default_factory=dict)

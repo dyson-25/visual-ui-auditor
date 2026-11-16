@@ -41,6 +41,57 @@ let startedAt = 0;
 let active = { id: null, status: 'idle', progress: 0, report: null, url: '' };
 let allItems = [];
 const inspectors = new Map();
+let calibrationUrl = `${location.origin}/demo`;
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  $('#theme-toggle').setAttribute('aria-pressed', String(theme === 'dark'));
+  $('#theme-toggle').setAttribute('aria-label', theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+  setText('#theme-label', theme === 'dark' ? 'Light theme' : 'Dark theme');
+  $('meta[name="theme-color"]').content = theme === 'dark' ? '#111821' : '#f7f9fc';
+}
+applyTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+$('#theme-toggle').addEventListener('click', () => {
+  const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  applyTheme(theme);
+  try { localStorage.setItem('frame.theme', theme); } catch { /* The toggle still works without storage. */ }
+});
+window.addEventListener('storage', event => {
+  if (event.key === 'frame.theme') applyTheme(event.newValue === 'dark' ? 'dark' : 'light');
+});
+
+function accessibilityStatus(report) {
+  if (!report) return 'unknown';
+  const states = names.map(name => report.viewports?.find(viewport => viewport.name === name)?.accessibility_status);
+  if (report.summary?.accessibility_status === 'incomplete' || states.includes('incomplete') || report.summary?.accessibility_incomplete_viewports?.length) return 'incomplete';
+  if (!['passed', 'violations'].includes(report.summary?.accessibility_status) || states.some(state => !['passed', 'violations'].includes(state))) return 'unknown';
+  return states.includes('violations') || report.summary.accessibility_status === 'violations' ? 'violations' : 'passed';
+}
+
+function renderAccessibility(report) {
+  const status = accessibilityStatus(report);
+  const panel = $('#accessibility-coverage');
+  panel.hidden = false;
+  panel.dataset.status = status;
+  const labels = {
+    incomplete: ['Accessibility checks incomplete · review required', 'Some checks could not finish or need manual review. Findings below are partial, not a pass. Review coverage warnings, inspect the page manually, and rerun the audit.'],
+    unknown: ['Accessibility coverage unknown', 'This report does not record complete accessibility coverage. No finding count can establish a pass. Rerun the audit to verify coverage.'],
+    violations: ['Accessibility violations detected', 'Automated checks ran across all viewports. Review the accessibility findings and validate fixes manually.'],
+    passed: ['Automated accessibility checks passed', 'No axe violations detected across all three viewports. Automated checks do not establish full accessibility; manual review is still needed.'],
+  };
+  setText('#accessibility-status', labels[status][0]);
+  setText('#accessibility-description', labels[status][1]);
+  const list = $('#accessibility-viewports');
+  list.replaceChildren();
+  for (const name of names) {
+    const viewport = report.viewports?.find(item => item.name === name);
+    const state = viewport?.accessibility_status;
+    const known = ['passed', 'violations', 'incomplete'].includes(state);
+    const count = viewport?.accessibility_issue_count;
+    const countLabel = known && Number.isInteger(count) && count >= 0 ? `${count} finding${count === 1 ? '' : 's'}${state === 'incomplete' ? ' so far' : ''}` : 'finding count unavailable';
+    list.append(element('li', '', `${titleCase(name)}: ${known ? state === 'incomplete' ? 'incomplete — manual review required' : state : 'coverage unknown'} · ${countLabel}`));
+  }
+}
 
 for (const name of names) {
   inspectors.set(name, new CanvasInspector($(`canvas[data-viewport='${name}']`), {
@@ -152,6 +203,7 @@ function resetRun() {
   active = { id: null, status: 'idle', progress: 0, report: null, url: '' };
   allItems = [];
   selected = null;
+  placeInspector();
   selectedPillar = 'all';
   listLimit = 200;
   zoom = 1;
@@ -162,6 +214,7 @@ function resetRun() {
   setText('#inspector-selector', '');
   $('#warnings-panel').hidden = true;
   $('#warnings-panel').open = false;
+  $('#accessibility-coverage').hidden = true;
   $('#warnings-list').replaceChildren();
   for (const name of names) {
     const inspector = inspectors.get(name);
@@ -197,6 +250,8 @@ function updateState(status, progress, error) {
   if (status === 'queued') label = 'Audit queued';
   if (status === 'running') label = 'Visual audit in progress';
   if (status === 'completed') label = active.report ? (warnings ? `Audit complete · ${warnings} warning${warnings === 1 ? '' : 's'}` : 'Audit complete · no capture warnings') : 'Audit complete · loading report';
+  const coverage = active.report ? accessibilityStatus(active.report) : null;
+  if (status === 'completed' && ['unknown', 'incomplete'].includes(coverage)) label = `Audit complete · accessibility ${coverage}`;
   if (status === 'failed') label = 'Audit failed';
   setText('#audit-status', label);
   setText('#audit-target', active.url || 'Your next quality check starts here.');
@@ -204,7 +259,7 @@ function updateState(status, progress, error) {
   const value = status === 'completed' ? 100 : Math.round(active.progress);
   $('#progress').value = value;
   setText('#progress-value', `${value}%`);
-  setText('#progress-label', status === 'completed' ? 'AUDIT COMPLETE' : status === 'failed' ? 'AUDIT STOPPED' : status === 'idle' ? 'AWAITING TARGET' : 'AUDIT PIPELINE');
+  setText('#progress-label', status === 'completed' ? 'Audit complete' : status === 'failed' ? 'Audit stopped' : status === 'idle' ? 'Awaiting target' : 'Audit in progress');
   $('#mission-dot').className = `status-dot ${status === 'failed' ? 'failed' : status === 'completed' ? (warnings ? 'warning' : '') : status === 'idle' ? 'muted' : 'running'}`;
   $('#run-audit').disabled = status === 'submitting';
   $('#try-demo').disabled = status === 'submitting';
@@ -255,6 +310,7 @@ function changeZoom(value) {
 }
 
 async function startAudit() {
+  await configReady;
   if ($('#run-audit').disabled) return;
   let url;
   try {
@@ -456,8 +512,11 @@ function renderReport(report) {
   setText('#high-count', number(high));
   setText('#medium-count', number(medium));
   setText('#warning-count', warningCount);
-  setText('#summary-caption', total ? 'Across all viewports' : warningCount ? 'Check capture coverage' : 'No findings detected');
-  setText('#warning-caption', warningCount ? 'Coverage needs review' : 'No capture warnings');
+  const coverage = accessibilityStatus(report);
+  const incomplete = coverage === 'incomplete' || coverage === 'unknown';
+  setText('#summary-caption', total ? 'Across all viewports' : incomplete ? 'Coverage needs review' : warningCount ? 'Check capture coverage' : 'No findings detected');
+  setText('#warning-caption', incomplete ? `Accessibility ${coverage}` : warningCount ? 'Coverage needs review' : 'No capture warnings');
+  renderAccessibility(report);
   setText('#duration', `${number(report.duration_seconds).toFixed(1)}s`);
   const warningList = $('#warnings-list');
   warningList.replaceChildren();
@@ -479,6 +538,7 @@ function setView(view) {
     button.setAttribute('aria-pressed', String(chosen));
   }
   for (const name of names) $(`[data-card='${name}']`).hidden = selectedView !== 'all' && selectedView !== name;
+  placeInspector();
   setText('#finding-scope', selectedView === 'all' ? 'All viewports' : `${titleCase(selectedView)} viewport`);
   listLimit = 200;
   renderFindings();
@@ -504,8 +564,11 @@ function renderFindings() {
     let heading = 'Clarity, not clutter.';
     let message = 'Run an audit to build your actionable quality checklist.';
     if (active.report) {
-      heading = allItems.length ? 'Nothing in this view.' : number(active.report.summary?.warning_count) ? 'No findings returned. Coverage has warnings.' : 'A clear result.';
-      message = allItems.length ? 'Try a different viewport or pillar filter.' : number(active.report.summary?.warning_count) ? 'Review the capture warnings before drawing conclusions.' : 'No issues detected by these checks. Manual review is still recommended.';
+      const coverage = accessibilityStatus(active.report);
+      const incomplete = coverage === 'incomplete' || coverage === 'unknown';
+      const needsCoverage = incomplete && (selectedPillar === 'accessibility' || !allItems.length);
+      heading = needsCoverage ? `Accessibility coverage ${coverage}.` : allItems.length ? 'Nothing in this view.' : number(active.report.summary?.warning_count) ? 'No findings returned. Coverage has warnings.' : 'No findings detected.';
+      message = needsCoverage ? 'An empty checklist is not a pass. Review coverage details and rerun the audit; manual checks may be required.' : allItems.length ? 'Try a different viewport or pillar filter.' : number(active.report.summary?.warning_count) ? 'Review the capture warnings before drawing conclusions.' : 'No issues detected by these checks. Manual review is still recommended.';
     } else if (active.status === 'failed') {
       heading = 'The audit could not finish.';
       message = 'Your activity log is preserved. Check the target URL and try again.';
@@ -513,7 +576,7 @@ function renderFindings() {
       heading = 'Looking at the details…';
       message = 'Findings will appear when all viewport checks finish.';
     }
-    empty.append(element('span', '', active.report && !allItems.length ? '✓' : '◎'), element('h3', '', heading), element('p', '', message));
+    empty.append(element('span', '', '◎'), element('h3', '', heading), element('p', '', message));
     list.append(empty);
     return;
   }
@@ -568,14 +631,21 @@ function selectFinding(item, focusImage) {
       const gridBounds = grid.getBoundingClientRect();
       grid.scrollLeft += cardBounds.left - gridBounds.left - 10;
     }
-    window.scrollTo({ top: window.scrollY, behavior: 'instant' });
-    $('#workspace').scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    $('#workspace').scrollIntoView({ block: 'start', behavior: 'instant' });
   }
   setText('#canvas-hint', `#${item.number} selected · ${titleCase(item.viewport)}${$('#overlay-toggle').checked ? '' : ' · Raw image, overlays hidden'}`);
 }
 
+function placeInspector() {
+  const inline = selected && (selectedView === 'all' || selectedView === selected.viewport) && matchMedia('(max-width: 960px)').matches;
+  const parent = inline ? $(`[data-card='${selected.viewport}']`) : $('#workspace');
+  if ($('#inspector-panel').parentElement !== parent) parent.append($('#inspector-panel'));
+}
+matchMedia('(max-width: 960px)').addEventListener('change', placeInspector);
+
 function renderInspector() {
   if (!selected) return;
+  placeInspector();
   const bug = selected.bug;
   $('#inspector-empty').hidden = true;
   $('#inspector-detail').hidden = false;
@@ -589,6 +659,9 @@ function renderInspector() {
   setText('#related-selector', bug.related_selector ? `Related: ${text(bug.related_selector, 1000)}` : '');
   $('#related-selector').hidden = !bug.related_selector;
   setText('#inspector-reason', text(bug.message, 3000) || 'No additional reason was provided.');
+  const context = bug.pillar === 'collision' ? 'Heuristic detection: intentional overlays may be valid. Check the design intent before changing this layout.' : bug.pillar === 'touch' ? 'Touch-target guidance is a usability recommendation, not an automatic WCAG failure.' : '';
+  setText('#inspector-context', context);
+  $('#inspector-context').hidden = !context;
   setText('#inspector-suggestion', text(bug.suggestion, 5000) || 'No automated suggestion is available. Review this finding in the context of your layout.');
   setText('#inspector-location', inspectors.get(selected.viewport).locationDescription(selected));
   const help = $('#inspector-help');
@@ -679,7 +752,7 @@ async function downloadReport(format) {
 }
 
 $('#audit-form').addEventListener('submit', event => { event.preventDefault(); startAudit(); });
-$('#try-demo').addEventListener('click', () => { $('#audit-url').value = `${location.origin}/demo`; startAudit(); });
+$('#try-demo').addEventListener('click', () => { $('#audit-url').value = calibrationUrl; startAudit(); });
 $('#refresh-history').addEventListener('click', loadHistory);
 $('#overlay-toggle').addEventListener('change', event => {
   for (const inspector of inspectors.values()) inspector.setOverlay(event.target.checked);
@@ -710,6 +783,27 @@ window.addEventListener('pageshow', event => {
   if (event.persisted && active.id) selectAudit(active.id);
 });
 
+async function loadConfiguration() {
+  try {
+    const config = await request('/api/config');
+    if (config.public_demo_mode === true) {
+      const url = new URL(config.calibration_url, location.origin);
+      if (url.origin !== location.origin || url.pathname !== '/demo' || url.search || url.hash) throw new Error('Invalid calibration URL');
+      calibrationUrl = url.href;
+      $('#audit-url').value = calibrationUrl;
+      $('#audit-url').readOnly = true;
+      setText('#url-help', 'Public demo: only the built-in calibration page can be audited. Run locally to inspect your own website.');
+      setText('#try-demo', 'Run calibration audit ↗');
+    } else {
+      setText('#url-help', 'Enter a public or local http(s) URL. Inspect overflow, collisions, touch targets, runtime & accessibility.');
+    }
+  } catch {
+    feedback('Unable to load audit settings. Reload the page to try again.');
+    $('#run-audit').disabled = true;
+    $('#try-demo').disabled = true;
+  }
+}
+const configReady = loadConfiguration();
 loadHistory();
 const restored = storage('read');
 if (restored && restored.length <= 200) selectAudit(restored);

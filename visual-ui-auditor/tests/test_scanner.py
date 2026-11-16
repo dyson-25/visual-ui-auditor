@@ -22,7 +22,7 @@ async def test_five_pillars(name, fixture_url):
         bugs = result["bugs"]
         kinds = {bug["type"] for bug in bugs}
         assert {"overlap", "broken_image"} <= kinds
-        assert any("Calibration console error" in bug["message"] for bug in runtime.bugs)
+        assert any("Calibration console error" in bug["message"] and fixture_url in bug["message"] for bug in runtime.bugs)
         assert {"http_error", "console_error"} <= {bug["type"] for bug in runtime.bugs}
         if name != "desktop":
             assert {"overflow", "small_tap_target", "crowded_tap_target"} <= kinds

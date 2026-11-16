@@ -3,40 +3,46 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b1016">
-  <title>Frame / Visual QA Mission Control</title>
+  <meta name="theme-color" content="#f7f9fc">
+  <title>Frame · Visual quality workspace</title>
+  <script>
+    // Apply an explicit preference before styles load; first visits always start light.
+    try { document.documentElement.dataset.theme = localStorage.getItem('frame.theme') === 'dark' ? 'dark' : 'light'; }
+    catch { document.documentElement.dataset.theme = 'light'; }
+    document.querySelector('meta[name="theme-color"]').content = document.documentElement.dataset.theme === 'dark' ? '#111821' : '#f7f9fc';
+  </script>
   <link rel="stylesheet" href="/static/css/tailwind.css">
   <script type="module" src="/static/js/app.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#workspace">Skip to audit workspace</a>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="Frame home"><span class="brand-mark" aria-hidden="true">F<span>·</span></span><span>frame<span class="brand-slash"> / </span><span class="brand-sub">MISSION CONTROL</span></span></a>
-    <div class="topbar-meta"><span class="status-dot"></span> VISUAL QUALITY LAB <span class="version">01 / WORKSPACE</span></div>
+    <a class="brand" href="/" aria-label="Frame home"><span class="brand-mark" aria-hidden="true">F<span>·</span></span><span>Frame</span><span class="brand-sub">Visual quality workspace</span></a>
+    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Dark theme" aria-pressed="false"><span aria-hidden="true">◐</span><span id="theme-label">Dark theme</span></button>
   </header>
   <main>
     <section class="launch-panel" aria-labelledby="page-title">
-      <div class="launch-heading"><div><p class="eyebrow">SEE THE GAPS. SHIP WITH CONFIDENCE.</p><h1 id="page-title">Every viewport. <span>Every detail.</span></h1><p class="intro">A focused workspace for responsive visual quality.</p></div><span class="local-badge"><span class="status-dot"></span> THREE VIEWPORTS · ONE AUDIT</span></div>
+      <div class="launch-heading"><div><h1 id="page-title">Every viewport. <span>Every detail.</span></h1><p class="intro">Find responsive layout issues, inspect the evidence, and ship with confidence.</p></div></div>
       <form id="audit-form" class="audit-form">
         <label for="audit-url" class="sr-only">Website URL to audit</label>
         <div class="url-field"><span aria-hidden="true" class="url-icon">↗</span><input id="audit-url" type="url" required placeholder="https://your-website.com" autocomplete="url" spellcheck="false" aria-describedby="url-help"></div>
         <button id="run-audit" type="submit" class="primary-button"><span aria-hidden="true">▶</span> Run Visual Audit</button>
       </form>
-      <div class="launch-foot"><p id="url-help">Enter a public or local http(s) URL. Inspect overflow, collisions, touch targets, runtime & accessibility.</p><button id="try-demo" class="text-button" type="button">Try calibration page <span aria-hidden="true">↗</span></button></div>
+      <div class="launch-foot"><p id="url-help">Loading audit settings…</p><button id="try-demo" class="text-button" type="button">Try calibration page <span aria-hidden="true">↗</span></button></div>
       <p id="feedback" class="feedback" role="status" aria-live="polite" hidden></p>
     </section>
 
     <section class="mission-bar" aria-label="Audit progress">
       <div class="mission-state"><span id="mission-dot" class="status-dot muted"></span><div><strong id="audit-status" role="status" aria-live="polite">Ready for your first audit</strong><span id="audit-target">Your next quality check starts here.</span></div></div>
-      <div class="progress-block"><div class="progress-label"><span id="progress-label">AWAITING TARGET</span><span id="progress-value">0%</span></div><progress id="progress" max="100" value="0" aria-label="Audit progress"></progress></div>
-      <div class="duration-block"><span class="eyebrow">DURATION</span><strong id="duration">—</strong></div>
+      <div class="progress-block"><div class="progress-label"><span id="progress-label">Awaiting target</span><span id="progress-value">0%</span></div><progress id="progress" max="100" value="0" aria-label="Audit progress"></progress></div>
+      <div class="duration-block"><span class="eyebrow">Duration</span><strong id="duration">—</strong></div>
     </section>
 
     <section class="summary-grid" aria-label="Audit summary">
-      <div class="stat-card total-stat"><span class="eyebrow">TOTAL FINDINGS</span><div><strong id="total-count">—</strong><span id="summary-caption">No audit yet</span></div></div>
-      <div class="stat-card"><span class="eyebrow"><i class="severity-dot high"></i> HIGH PRIORITY</span><div><strong id="high-count">—</strong><span>Review first</span></div></div>
-      <div class="stat-card"><span class="eyebrow"><i class="severity-dot medium"></i> MEDIUM PRIORITY</span><div><strong id="medium-count">—</strong><span>Refine the details</span></div></div>
-      <div class="stat-card"><span class="eyebrow">AUDIT WARNINGS</span><div><strong id="warning-count">—</strong><span id="warning-caption">Capture & coverage</span></div></div>
+      <div class="stat-card total-stat"><span class="eyebrow">Total findings</span><div><strong id="total-count">—</strong><span id="summary-caption">No audit yet</span></div></div>
+      <div class="stat-card"><span class="eyebrow"><i class="severity-dot high"></i> High priority</span><div><strong id="high-count">—</strong><span>Review first</span></div></div>
+      <div class="stat-card"><span class="eyebrow"><i class="severity-dot medium"></i> Medium priority</span><div><strong id="medium-count">—</strong><span>Refine the details</span></div></div>
+      <div class="stat-card"><span class="eyebrow">Audit warnings</span><div><strong id="warning-count">—</strong><span id="warning-caption">Capture & coverage</span></div></div>
     </section>
 
     <section id="workspace" class="workspace" aria-label="Visual inspection workspace">
@@ -49,9 +55,25 @@
           <article class="viewport-card" data-card="mobile"><header><span class="device-icon" aria-hidden="true">▯</span><h3>Mobile</h3><span class="viewport-size">375 × 812</span><span class="viewport-count" data-count="mobile">—</span></header><div class="canvas-scroll" data-scroll="mobile"><canvas data-viewport="mobile" tabindex="0" hidden aria-label="Mobile screenshot; use the finding list to inspect issues"></canvas><div class="capture-placeholder" data-placeholder="mobile"><span class="empty-device mobile-device" aria-hidden="true"></span><strong>Small screen. High stakes.</strong><p>Mobile capture will appear here.</p><span class="capture-tag">375 × 812</span></div></div><footer><span data-capture-label="mobile">AWAITING CAPTURE</span><span>03</span></footer></article>
         </div>
         <div class="canvas-legend"><span><i class="severity-dot high"></i> High priority <i class="severity-dot medium"></i> Medium priority</span><span id="canvas-hint">Select a finding to inspect its location.</span></div>
+        <section id="accessibility-coverage" class="coverage-panel" aria-label="Accessibility coverage" hidden><h3 id="accessibility-status"></h3><p id="accessibility-description"></p><ul id="accessibility-viewports"></ul></section>
         <details class="warnings-panel" id="warnings-panel" hidden><summary id="warnings-title">Capture warnings</summary><ul id="warnings-list"></ul></details>
       </div>
-      <aside id="inspector-panel" class="inspector-panel" aria-labelledby="inspector-title"><div class="inspector-heading"><div><p class="eyebrow">DETAILS & REMEDIATION</p><h2 id="inspector-title">Finding inspector</h2></div><span aria-hidden="true" class="crosshair">⌖</span></div><div id="inspector-empty" class="inspector-empty"><div class="inspector-empty-icon" aria-hidden="true">⌖</div><h3>A closer look starts here</h3><p>Select a finding or a highlighted region to see what needs attention.</p><div class="inspector-hint"><span>01</span> Locate the issue<br><span>02</span> Understand the impact<br><span>03</span> Explore a suggested fix</div></div><div id="inspector-detail" hidden><div class="finding-meta"><span id="inspector-severity" class="severity-badge"></span><span id="inspector-viewport"></span><span id="inspector-number"></span></div><h3 id="inspector-type"></h3><label class="detail-label">ELEMENT SELECTOR</label><pre id="inspector-selector" tabindex="0"></pre><p id="related-selector" class="related-selector" hidden></p><label class="detail-label">WHY IT MATTERS</label><p id="inspector-reason"></p><p id="inspector-location" class="location-note"></p><label class="detail-label">SUGGESTED REMEDIATION</label><pre id="inspector-suggestion" tabindex="0"></pre><p class="suggestion-note">A starting point, not a guaranteed fix. Validate against your layout and design intent.</p><a id="inspector-help" class="text-link" target="_blank" rel="noopener noreferrer" hidden>Reference documentation ↗</a></div></aside>
+      <aside id="inspector-panel" class="inspector-panel" aria-labelledby="inspector-title">
+        <div class="inspector-heading"><h2 id="inspector-title">Finding inspector</h2><span aria-hidden="true" class="crosshair">⌖</span></div>
+        <div id="inspector-empty" class="inspector-empty"><div class="inspector-empty-icon" aria-hidden="true">⌖</div><h3>A closer look starts here</h3><p>Select a finding or a highlighted region to see what needs attention.</p></div>
+        <div id="inspector-detail" hidden>
+          <div class="finding-meta"><span id="inspector-severity" class="severity-badge"></span><span id="inspector-viewport"></span><span id="inspector-number"></span></div>
+          <h3 id="inspector-type"></h3>
+          <h4 class="detail-label">Element selector</h4><pre id="inspector-selector" tabindex="0"></pre>
+          <p id="related-selector" class="related-selector" hidden></p>
+          <h4 class="detail-label">Why it matters</h4><p id="inspector-reason"></p>
+          <p id="inspector-context" class="suggestion-note" hidden></p>
+          <p id="inspector-location" class="location-note"></p>
+          <h4 class="detail-label">Suggested remediation</h4><pre id="inspector-suggestion" tabindex="0"></pre>
+          <p class="suggestion-note">A starting point, not a guaranteed fix. Validate against your layout and design intent.</p>
+          <a id="inspector-help" class="text-link" target="_blank" rel="noopener noreferrer" hidden>Reference documentation ↗</a>
+        </div>
+      </aside>
     </section>
 
     <section class="bottom-grid">
@@ -62,6 +84,6 @@
     <section class="history-panel"><div class="section-heading"><div><p class="eyebrow">PREVIOUS MISSIONS</p><h2>Audit history</h2></div><button id="refresh-history" type="button" class="subtle-button">Refresh history ↻</button></div><div id="audit-history" class="audit-history" aria-label="Recent audits"><p class="muted-text">Loading recent audits…</p></div></section>
     <footer class="report-footer"><div><strong>Take the findings with you.</strong><p id="export-status" role="status" aria-live="polite">Reports unlock when the audit is complete.</p></div><div class="export-buttons"><button type="button" data-export="json" disabled>↓ JSON</button><button type="button" data-export="html" disabled>↓ HTML</button><button type="button" data-export="pdf" disabled>↓ PDF <span>REPORT</span></button></div></footer>
   </main>
-  <div class="page-foot"><span>FRAME / VISUAL QA</span><span>Built for the details that make the difference.</span><span>INSPECT · UNDERSTAND · REFINE</span></div>
+  <div class="page-foot"><span>Frame · Visual quality workspace</span><span>Automated signals. Human judgment.</span></div>
 </body>
 </html>

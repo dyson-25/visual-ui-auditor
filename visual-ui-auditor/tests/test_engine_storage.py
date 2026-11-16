@@ -25,6 +25,9 @@ async def test_complete_audit_persists_heatmaps_and_events(tmp_path, fixture_url
     assert numbers == list(range(1, len(numbers) + 1))
     assert set(report["summary"]["by_pillar"]) == {"overflow", "collision", "touch", "runtime", "accessibility"}
     for viewport in report["viewports"]:
+        assert viewport["accessibility_status"] in {"violations", "incomplete"}
+        assert viewport["accessibility_issue_count"] > 0
+        assert any(b["pillar"] == "accessibility" for b in viewport["bugs"])
         with Image.open(tmp_path / "screenshots" / Path(viewport["screenshot"]).name) as raw:
             with Image.open(tmp_path / "screenshots" / Path(viewport["heatmap"]).name) as annotated:
                 assert raw.width == viewport["width"]

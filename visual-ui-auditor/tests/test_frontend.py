@@ -1,5 +1,7 @@
+import asyncio
 import io
 import json
+from pathlib import Path
 
 from PIL import Image
 import socket
@@ -96,7 +98,7 @@ async def test_dashboard_audit_inspect_export_restore(live_dashboard, tmp_path):
         await browser.close()
 
 
-async def load_interaction_report(page, base_url):
+async def load_interaction_report(page, base_url, accessibility=None):
     """Use deterministic tall captures without creating or modifying saved audits."""
     viewports = []
     images = {}
@@ -126,8 +128,16 @@ async def load_interaction_report(page, base_url):
               "report": {"viewports": viewports, "duration_seconds": 1,
                          "summary": {"total": 18, "warning_count": 0}}}
 
+    if accessibility is not None:
+        for viewport in viewports:
+            viewport.update(accessibility[viewport["name"]])
+        report["report"]["summary"].update(accessibility["summary"])
+
     async def api(route):
-        if route.request.url.endswith("/api/audits"):
+        if route.request.url.endswith("/api/config"):
+            await route.fulfill(json={"public_demo_mode": False, "arbitrary_urls": True,
+                                      "calibration_url": f"{base_url}/demo"})
+        elif route.request.url.endswith("/api/audits"):
             await route.fulfill(json=[report, {**report, "id": "older"}])
         else:
             await route.fulfill(json={**report, "id": route.request.url.rsplit("/", 1)[-1]})
@@ -260,4 +270,155 @@ async def test_finding_navigation_and_controls(live_dashboard, screen_width, scr
         await expect(page.locator('[data-audit="older"]')).to_have_attribute("aria-pressed", "true")
         assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
         assert errors == []
+        await browser.close()
+
+
+@pytest.mark.parametrize("width,height", [(1440, 900), (768, 1024), (375, 812)])
+@pytest.mark.parametrize("theme", ["light", "dark"])
+async def test_dashboard_themes_layout_and_accessibility(live_dashboard, width, height, theme):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page(viewport={"width": width, "height": height},
+                                      color_scheme="dark", reduced_motion="reduce")
+        errors = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        await load_interaction_report(page, live_dashboard)
+        await expect(page.locator("html")).to_have_attribute("data-theme", "light")
+        canvas = page.locator('canvas[data-viewport="desktop"]')
+        original_pixels = await canvas.evaluate("el => el.toDataURL()")
+        # Explicitly save either preference, regardless of the OS color scheme.
+        await page.locator("#theme-toggle").click()
+        if theme == "light":
+            await page.locator("#theme-toggle").click()
+        await expect(page.locator("html")).to_have_attribute("data-theme", theme)
+        assert await page.evaluate("localStorage.getItem('frame.theme')") == theme
+        assert await canvas.evaluate("el => el.toDataURL()") == original_pixels
+        await expect(canvas).to_have_css("filter", "none")
+        await page.reload()
+        await expect(page.locator("html")).to_have_attribute("data-theme", theme)
+        await expect(page.locator('[data-capture-label="mobile"]')).to_contain_text("READY")
+        await expect(page.locator("#theme-toggle")).to_have_attribute("aria-pressed", str(theme == "dark").lower())
+        assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        columns = await page.locator("#canvas-grid").evaluate("el => getComputedStyle(el).gridTemplateColumns.split(' ').length")
+        assert columns == (3 if width == 1440 else 2 if width == 768 else 1)
+        await page.locator("#theme-toggle").focus()
+        await page.keyboard.press("Tab")
+        await expect(page.locator("#audit-url")).to_be_focused()
+        assert await page.locator(".url-field").evaluate("el => getComputedStyle(el).boxShadow !== 'none'")
+        await page.locator("#theme-toggle").focus()
+        assert await page.locator("#theme-toggle").evaluate("el => getComputedStyle(el).outlineStyle === 'solid'")
+        assert await page.locator("#theme-toggle").evaluate("el => getComputedStyle(el).transitionDuration === '0s'")
+        assert await page.locator("body").evaluate("el => parseFloat(getComputedStyle(el).fontSize) >= 14")
+        for selector in ("#theme-toggle", "#run-audit", ".segmented", ".export-buttons"):
+            box = await page.locator(selector).bounding_box()
+            assert box["x"] >= 0 and box["x"] + box["width"] <= width
+        await page.add_script_tag(path=str(Path(__file__).resolve().parents[1] / "node_modules/axe-core/axe.min.js"))
+        violations = await page.evaluate("""async () => (await axe.run(document, {
+            runOnly: {type:'tag', values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}
+        })).violations.map(v => ({id:v.id, nodes:v.nodes.map(n => n.target)}))""")
+        assert violations == []
+        await page.locator('[data-finding="mobile:2"]').click()
+        await expect(page.locator("#inspector-selector")).to_be_in_viewport()
+        assert await page.evaluate("""() => {
+            const detail = document.querySelector('#inspector-panel').getBoundingClientRect();
+            return [...document.querySelectorAll('.canvas-scroll')].every(el => {
+                const capture = el.getBoundingClientRect();
+                return detail.right <= capture.left || detail.left >= capture.right ||
+                    detail.bottom <= capture.top || detail.top >= capture.bottom;
+            });
+        }""")
+        await page.locator('button[data-view="desktop"]').click()
+        await expect(page.locator("#inspector-panel")).to_be_visible()
+        await page.locator('button[data-view="mobile"]').click()
+        assert await page.locator("#canvas-grid").evaluate("el => getComputedStyle(el).gridTemplateColumns.split(' ').length") == 1
+        await page.set_viewport_size({"width": 1440 if width < 960 else 375, "height": height})
+        await expect(page.locator("#inspector-panel")).to_be_visible()
+        assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        assert errors == []
+        await browser.close()
+
+
+@pytest.mark.parametrize("saved,expected", [(None, "light"), ("dark", "dark"), ("light", "light"), ("invalid", "light")])
+async def test_theme_applied_before_styles_load(live_dashboard, saved, expected):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page(color_scheme="dark")
+        if saved is not None:
+            await page.add_init_script(f"localStorage.setItem('frame.theme', {json.dumps(saved)})")
+        release_styles = asyncio.Event()
+
+        async def hold_styles(route):
+            await release_styles.wait()
+            await route.continue_()
+
+        await page.route("**/css/tailwind.css", hold_styles)
+        await page.goto(live_dashboard, wait_until="commit")
+        try:
+            await expect(page.locator("html")).to_have_attribute("data-theme", expected)
+            assert await page.locator('meta[name="theme-color"]').get_attribute("content") == ("#111821" if expected == "dark" else "#f7f9fc")
+        finally:
+            release_styles.set()
+        await page.wait_for_load_state()
+        await browser.close()
+
+
+async def test_theme_works_when_storage_is_unavailable(live_dashboard):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page()
+        await page.add_init_script("""Storage.prototype.getItem = () => { throw new Error('Storage blocked'); };
+            Storage.prototype.setItem = () => { throw new Error('Storage blocked'); };""")
+        await page.goto(live_dashboard)
+        await expect(page.locator("html")).to_have_attribute("data-theme", "light")
+        await page.locator("#theme-toggle").click()
+        await expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+        await page.reload()
+        await expect(page.locator("html")).to_have_attribute("data-theme", "light")
+        await browser.close()
+
+
+@pytest.mark.parametrize("state,count", [("passed", 0), ("violations", 2), ("incomplete", None), ("incomplete", 2), ("unknown", None)])
+async def test_accessibility_coverage_is_not_a_false_pass(live_dashboard, state, count):
+    accessibility = None if state == "unknown" else {
+        name: {"accessibility_status": state, "accessibility_issue_count": count}
+        for name in ("desktop", "tablet", "mobile")
+    }
+    if accessibility is not None:
+        accessibility["summary"] = {
+            "accessibility_status": state,
+            "accessibility_incomplete_viewports": ["desktop", "tablet", "mobile"] if state == "incomplete" else [],
+        }
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page()
+        await load_interaction_report(page, live_dashboard, accessibility)
+        await expect(page.locator("#accessibility-coverage")).to_have_attribute("data-status", state)
+        await expect(page.locator("#accessibility-status")).to_contain_text(state)
+        labels = await page.locator("#accessibility-viewports").inner_text()
+        for name in ("Desktop", "Tablet", "Mobile"):
+            assert name in labels
+        if count is None:
+            assert "finding count unavailable" in labels and "0 findings" not in labels
+        if state == "incomplete":
+            assert "manual review required" in labels
+            await expect(page.locator("#audit-status")).to_contain_text("accessibility incomplete")
+        if state == "unknown":
+            assert "coverage unknown" in labels
+            await expect(page.locator("#audit-status")).to_contain_text("accessibility unknown")
+        await browser.close()
+
+
+async def test_public_calibration_mode_controls(live_dashboard):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page()
+        await page.route("**/api/config", lambda route: route.fulfill(json={
+            "public_demo_mode": True, "arbitrary_urls": False,
+            "calibration_url": f"{live_dashboard}/demo",
+        }))
+        await page.goto(live_dashboard)
+        await expect(page.locator("#audit-url")).to_have_attribute("readonly", "")
+        await expect(page.locator("#audit-url")).to_have_value(f"{live_dashboard}/demo")
+        await expect(page.locator("#url-help")).to_contain_text("only the built-in calibration page")
+        await expect(page.locator("#run-audit")).to_be_enabled()
         await browser.close()

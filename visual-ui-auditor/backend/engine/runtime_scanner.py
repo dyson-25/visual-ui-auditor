@@ -1,4 +1,4 @@
-from playwright.async_api import Page
+from playwright.async_api import ConsoleMessage, Page
 
 
 class RuntimeCollector:
@@ -7,10 +7,18 @@ class RuntimeCollector:
         self.warnings: list[str] = []
         self._seen: set[tuple[str, str]] = set()
         self.limit = limit
-        page.on("console", lambda msg: self.add("console_error", msg.text) if msg.type == "error" else None)
-        page.on("pageerror", lambda error: self.add("javascript_error", str(error)))
+        page.on("console", self.console_error)
+        page.on("pageerror", lambda error: self.add("javascript_error", error.stack or str(error)))
         page.on("response", lambda response: self.add("http_error", f"HTTP {response.status}: {response.url}") if response.status >= 400 else None)
         page.on("requestfailed", lambda request: self.add("request_failed", f"{request.failure}: {request.url}"))
+
+    def console_error(self, message: ConsoleMessage) -> None:
+        if message.type != "error":
+            return
+        location = message.location
+        source = location.get("url", "")
+        position = f"{source}:{location.get('lineNumber', 0) + 1}:{location.get('columnNumber', 0) + 1}" if source else ""
+        self.add("console_error", f"{position}\n{message.text}" if position else message.text)
 
     def add(self, kind: str, message: str) -> None:
         message = message[:2000]

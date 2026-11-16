@@ -18,8 +18,16 @@ def render_html(audit: dict, screenshots: Path) -> str:
               <td><strong>{escape(bug['type'])}</strong><br><code>{escape(bug['selector'])}</code></td>
               <td>{escape(bug['message'])}</td><td><pre>{escape(bug['suggestion'])}</pre></td></tr>''')
         warnings = "".join(f"<li>{escape(w)}</li>" for w in viewport["warnings"])
+        status = viewport.get("accessibility_status", "incomplete")
+        count = viewport.get("accessibility_issue_count")
+        coverage = {
+            "passed": "checked — no detected violations (not an accessibility certification)",
+            "violations": f"checked — {count} detected findings",
+            "incomplete": "incomplete — not a clean accessibility result; review coverage warnings and rerun",
+        }.get(status, "incomplete — coverage unavailable for this saved report")
         sections.append(f'''<section><h2>{escape(viewport['name'].title())} · {viewport['width']} × {viewport['height']}</h2>
           <p>{len(viewport['bugs'])} findings · capture {viewport['screenshot_width']} × {viewport['screenshot_height']} px</p>
+          <p><strong>Accessibility: {escape(coverage)}</strong></p>
           <ul class="warnings">{warnings}</ul><img alt="Annotated {escape(viewport['name'])} screenshot" src="data:image/png;base64,{encoded}">
           <table><thead><tr><th>#</th><th>Severity</th><th>Element / rule</th><th>Finding</th><th>Suggested remediation</th></tr></thead>
           <tbody>{''.join(rows) or '<tr><td colspan="5">No automated findings in this viewport.</td></tr>'}</tbody></table></section>''')
@@ -33,7 +41,8 @@ def render_html(audit: dict, screenshots: Path) -> str:
     @page{{size:A4 landscape;margin:12mm}}@media print{{body{{margin:0;padding:0;max-width:none}}img{{max-height:170mm;width:auto;max-width:100%;object-fit:contain}}}}
     </style></head><body><h1>Visual UI Audit</h1><p>{escape(audit['url'])}</p>
     <p>Created {escape(audit['created_at'])} · {report['duration_seconds']} seconds · {report['summary']['total']} findings</p>
-    <p>Automated evidence, not an accessibility certification. Layout collisions are heuristic. Remediations are suggestions requiring review. Counts include repeat findings across viewports. Use your browser’s Print command to print this standalone report.</p>
+    <p>{report['summary'].get('warning_count', 0)} audit warnings. An audit finishing does not mean every check completed.</p>
+    <p>Automated evidence, not an accessibility certification. Layout collisions are heuristic; intentional overlays need human review. Touch-target sizes are ergonomic recommendations, not automatic WCAG failures. Remediations are suggestions requiring review. Counts include repeat findings across viewports. Use your browser’s Print command to print this standalone report.</p>
     {''.join(sections)}</body></html>'''
 
 
