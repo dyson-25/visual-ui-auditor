@@ -240,9 +240,10 @@ h2 { font-size:18px; }
 .intro { font-size:15px; margin-top:12px; max-width:650px; }
 .launch-heading { margin-bottom:22px; }
 .url-field { background:var(--panel); border-color:var(--muted); box-shadow:none; }
-.url-field:focus-within { border-color:var(--focus); box-shadow:0 0 0 3px color-mix(in srgb,var(--focus) 18%,transparent); }
+.url-field:focus-within { border-color:var(--accent); outline:2px solid var(--accent); outline-offset:-1px; box-shadow:none; }
 .url-icon,#audit-url::placeholder { color:var(--muted); }
 #audit-url { color:var(--text); height:52px; font-size:16px; }
+#audit-url:focus { outline:none; }
 .primary-button { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-size:14px; box-shadow:none; }
 .launch-foot { font-size:13px; color:var(--muted); align-items:center; }
 .text-button,.text-link { font-size:13px; color:var(--accent); }

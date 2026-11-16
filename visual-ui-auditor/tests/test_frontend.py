@@ -304,7 +304,8 @@ async def test_dashboard_themes_layout_and_accessibility(live_dashboard, width, 
         await page.locator("#theme-toggle").focus()
         await page.keyboard.press("Tab")
         await expect(page.locator("#audit-url")).to_be_focused()
-        assert await page.locator(".url-field").evaluate("el => getComputedStyle(el).boxShadow !== 'none'")
+        await expect(page.locator(".url-field")).to_have_css("outline-style", "solid")
+        await expect(page.locator(".url-field")).to_have_css("outline-width", "2px")
         await page.locator("#theme-toggle").focus()
         assert await page.locator("#theme-toggle").evaluate("el => getComputedStyle(el).outlineStyle === 'solid'")
         assert await page.locator("#theme-toggle").evaluate("el => getComputedStyle(el).transitionDuration === '0s'")
@@ -405,6 +406,60 @@ async def test_accessibility_coverage_is_not_a_false_pass(live_dashboard, state,
         if state == "unknown":
             assert "coverage unknown" in labels
             await expect(page.locator("#audit-status")).to_contain_text("accessibility unknown")
+        await browser.close()
+
+
+@pytest.mark.parametrize("width,height", [(1440, 900), (768, 1024), (375, 812)])
+@pytest.mark.parametrize("public_demo", [False, True])
+@pytest.mark.parametrize("theme", ["light", "dark"])
+async def test_url_field_unified_focus(live_dashboard, width, height, public_demo, theme):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page(viewport={"width": width, "height": height})
+        await page.add_init_script(f"localStorage.setItem('frame.theme', {json.dumps(theme)})")
+        await page.route("**/api/config", lambda route: route.fulfill(json={
+            "public_demo_mode": public_demo, "arbitrary_urls": not public_demo,
+            "calibration_url": f"{live_dashboard}/demo",
+        }))
+        await page.goto(live_dashboard)
+        await expect(page.locator("#run-audit")).to_be_enabled()
+        field = page.locator(".url-field")
+        url = page.locator("#audit-url")
+        assert await url.evaluate("el => el.readOnly") == public_demo
+        geometry = [await el.bounding_box() for el in (field, url, page.locator(".url-icon"))]
+        accent = await page.locator("#run-audit").evaluate("el => getComputedStyle(el).backgroundColor")
+        border = await field.evaluate("el => getComputedStyle(el).borderColor")
+        await expect(field).to_have_css("outline-style", "none")
+        await expect(field).to_have_css("box-shadow", "none")
+
+        for interaction in ("mouse", "keyboard"):
+            await page.locator("h1").click()
+            if interaction == "mouse":
+                await url.click()
+            else:
+                await page.locator("#theme-toggle").focus()
+                await page.keyboard.press("Tab")
+            await expect(url).to_be_focused()
+            await expect(url).to_have_css("outline-style", "none")
+            await expect(url).to_have_css("box-shadow", "none")
+            await expect(field).to_have_css("border-color", accent)
+            await expect(field).to_have_css("outline", f"{accent} solid 2px")
+            await expect(field).to_have_css("outline-offset", "-1px")
+            await expect(field).to_have_css("box-shadow", "none")
+            assert [await el.bounding_box() for el in (field, url, page.locator(".url-icon"))] == geometry
+            assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+            if public_demo:
+                await page.keyboard.type("example.com")
+                await expect(url).to_have_value(f"{live_dashboard}/demo")
+            else:
+                await url.fill("https://example.com/")
+                await expect(url).to_have_value("https://example.com/")
+            await page.keyboard.press("Tab")
+            await expect(page.locator("#run-audit")).to_be_focused()
+            await expect(page.locator("#run-audit")).to_have_css("outline-width", "3px")
+            await expect(field).to_have_css("outline-style", "none")
+            await expect(field).to_have_css("box-shadow", "none")
+            await expect(field).to_have_css("border-color", border)
         await browser.close()
 
 
