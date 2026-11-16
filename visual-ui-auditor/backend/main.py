@@ -37,7 +37,7 @@ def create_app(storage: Path = STORAGE, *, security: SecurityConfig | None = Non
 
     def request_origin(request: Request) -> str:
         # A configured external origin avoids trusting forwarded headers to recover TLS.
-        if policy.public_demo and policy.public_origin:
+        if policy.public_origin:
             return policy.public_origin
         return str(request.base_url).rstrip("/")
 
@@ -88,7 +88,7 @@ def create_app(storage: Path = STORAGE, *, security: SecurityConfig | None = Non
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver", "*.onrender.com"]
-        + ([urlsplit(policy.public_origin).hostname] if policy.public_demo and policy.public_origin else []),
+        + ([urlsplit(policy.public_origin).hostname] if policy.public_origin else []),
     )
 
     @app.middleware("http")
@@ -247,7 +247,7 @@ def create_app(storage: Path = STORAGE, *, security: SecurityConfig | None = Non
     @app.websocket("/ws/audit/{audit_id}")
     async def live_audit(websocket: WebSocket, audit_id: UUID, after: int = Query(0, ge=0)):
         origin = websocket.headers.get("origin")
-        expected = (policy.public_origin if policy.public_demo and policy.public_origin else
+        expected = (policy.public_origin if policy.public_origin else
                     f"{'https' if websocket.url.scheme == 'wss' else 'http'}://{websocket.headers.get('host', '')}")
         owner = signer.verify(websocket.cookies.get(COOKIE_NAME)) if policy.public_demo else None
         ip = websocket.client.host if websocket.client else "unknown"

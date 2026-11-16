@@ -427,8 +427,9 @@ def test_tls_termination_uses_configured_origin_not_forwarded_headers(tmp_path, 
         assert client.post("/api/audit", json={"url": external + "/demo"}, headers={"Origin": external, "X-Forwarded-For": "9.9.9.9"}).status_code == 429
 
 
-def test_public_origin_environment_precedence_and_validation(monkeypatch):
-    monkeypatch.setenv("PUBLIC_DEMO_MODE", "true")
+@pytest.mark.parametrize("public_demo", ["true", "false"])
+def test_public_origin_environment_precedence_and_validation(monkeypatch, public_demo):
+    monkeypatch.setenv("PUBLIC_DEMO_MODE", public_demo)
     monkeypatch.delenv("PUBLIC_ORIGIN", raising=False)
     monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://frame.onrender.com")
     assert SecurityConfig.from_env().public_origin == "https://frame.onrender.com"
@@ -438,5 +439,63 @@ def test_public_origin_environment_precedence_and_validation(monkeypatch):
         monkeypatch.setenv("PUBLIC_ORIGIN", invalid)
         with pytest.raises(ValueError):
             SecurityConfig.from_env()
-    monkeypatch.setenv("PUBLIC_DEMO_MODE", "false")
+    monkeypatch.delenv("PUBLIC_ORIGIN")
+    monkeypatch.delenv("RENDER_EXTERNAL_URL")
     assert SecurityConfig.from_env().public_origin is None
+
+
+@pytest.mark.parametrize("external", ["https://frame.onrender.com", "https://frame.example"])
+def test_unrestricted_tls_termination_uses_canonical_origin(tmp_path, monkeypatch, external):
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    async def unrestricted_audit(url, audit_id, output, progress, *, public_demo=False):
+        assert not public_demo
+        assert url == "https://example.com/"
+        return {"duration_seconds": 1, "summary": {"total": 0}, "viewports": []}
+
+    monkeypatch.setattr("backend.main.run_audit", unrestricted_audit)
+    app = create_app(tmp_path, security=SecurityConfig(public_demo=False, public_origin=external))
+    untrusted_headers_app = ProxyHeadersMiddleware(app, trusted_hosts=[])
+
+    async def tls_terminating_proxy(scope, receive, send):
+        if scope["type"] in {"http", "websocket"}:
+            scope = dict(scope)
+            scope["scheme"] = "http" if scope["type"] == "http" else "ws"
+            scope["client"] = ("10.20.30.40", 45678)
+        await untrusted_headers_app(scope, receive, send)
+
+    headers = {"Origin": external, "X-Audit-Client": "dashboard",
+               "X-Forwarded-Proto": "http", "X-Forwarded-Host": "attacker.example",
+               "X-Forwarded-For": "8.8.8.8"}
+    payload = {"url": "https://example.com/"}
+    with TestClient(tls_terminating_proxy, base_url=external) as client:
+        config = client.get("/api/config", headers=headers)
+        assert config.status_code == 200
+        assert config.json()["calibration_url"] == external + "/demo"
+        assert config.json()["arbitrary_urls"] is True
+        assert config.json()["public_demo_mode"] is False
+        for invalid in (
+            {"Origin": "https://attacker.example", "X-Forwarded-Host": "attacker.example", "X-Forwarded-Proto": "https"},
+            {"Origin": external.replace("https://", "http://")},
+            {"Sec-Fetch-Site": "cross-site"},
+            {"X-Audit-Client": ""},
+            {"X-Audit-Client": "other"},
+        ):
+            response = client.post("/api/audit", json=payload, headers={**headers, **invalid})
+            assert response.status_code == 403
+        assert client.post("/api/audit", json=payload, headers={"Origin": external}).status_code == 403
+        created = client.post("/api/audit", json=payload, headers=headers)
+        assert created.status_code == 202
+        audit_id = created.json()["audit_id"]
+        websocket_url = external.replace("https://", "wss://") + f"/ws/audit/{audit_id}"
+        with client.websocket_connect(websocket_url, headers=headers) as ws:
+            for _ in range(10):
+                event = ws.receive_json()
+                if event["status"] in {"completed", "failed"}:
+                    break
+            assert event["status"] == "completed"
+        for origin in ("https://attacker.example", external.replace("https://", "http://")):
+            with pytest.raises(WebSocketDisconnect) as rejected:
+                with client.websocket_connect(websocket_url, headers={**headers, "Origin": origin}):
+                    pass
+            assert rejected.value.code == 1008

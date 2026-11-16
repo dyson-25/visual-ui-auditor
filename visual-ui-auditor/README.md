@@ -90,7 +90,7 @@ Use [.env.example](.env.example) as a reference; do not overwrite an existing pr
 | --- | --- |
 | `PUBLIC_DEMO_MODE` | Safe application default `true`: only the bundled calibration page, no arbitrary targets. Set `false` only for trusted local development. |
 | `AUDITOR_SESSION_SECRET` | Optional random secret, at least 32 bytes, kept in the hosting secret manager. If absent, a process-local random key invalidates sessions on restart. Never commit a real value. |
-| `PUBLIC_ORIGIN` | Canonical HTTPS origin behind a reverse proxy, e.g. `https://your-service.onrender.com`. Falls back to Render's `RENDER_EXTERNAL_URL`; invalid values fail startup. |
+| `PUBLIC_ORIGIN` | Canonical HTTPS origin behind a reverse proxy, e.g. `https://your-service.onrender.com`, in both public-demo and unrestricted modes. Falls back to Render's `RENDER_EXTERNAL_URL`; invalid values fail startup. HTTP/WebSocket origin checks and the trusted host list use this origin without trusting forwarded headers. When neither variable is set, the request origin is used. |
 | `AUDITOR_STORAGE` | Database/screenshots root; default `backend/storage`. Use an absolute mounted path for persistence. |
 | `PUBLIC_AUDIT_RETENTION_SECONDS` | New public audit retention, default 86400 (24 hours). Existing local data is not automatically deleted. |
 | `PUBLIC_STORAGE_MAX_MB` | Public storage admission limit, default 256 MB. Requests are refused when capacity is exhausted. |

@@ -61,7 +61,7 @@ class SecurityConfig:
         return cls(
             public_demo=public,
             session_secret=os.environ.get("AUDITOR_SESSION_SECRET") or None,
-            public_origin=(os.environ.get("PUBLIC_ORIGIN") or os.environ.get("RENDER_EXTERNAL_URL") or None) if public else None,
+            public_origin=os.environ.get("PUBLIC_ORIGIN") or os.environ.get("RENDER_EXTERNAL_URL") or None,
             retention_seconds=max(60, int(os.environ.get("PUBLIC_AUDIT_RETENTION_SECONDS", "86400"))),
             max_storage_bytes=max(16 * 1024 * 1024, int(os.environ.get("PUBLIC_STORAGE_MAX_MB", "256")) * 1024 * 1024),
         )
